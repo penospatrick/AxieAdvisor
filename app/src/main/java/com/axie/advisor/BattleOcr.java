@@ -26,4 +26,24 @@ public final class BattleOcr {
             .addOnFailureListener(e -> callback.done("OCR error: "+e.getMessage()))
             .addOnCompleteListener(task -> {recognizer.close();bitmap.recycle();});
     }
+
+    public static void analyzeStrategy(Context context,int energy,int enemyHp,Callback callback){
+        File file=new File(context.getFilesDir(),"latest_capture.png");
+        if(!file.exists()){callback.done("No screenshot available. Start screen capture first.");return;}
+        Bitmap bitmap=BitmapFactory.decodeFile(file.getAbsolutePath());
+        if(bitmap==null){callback.done("Screenshot could not be decoded.");return;}
+        com.google.mlkit.vision.text.TextRecognizer recognizer=TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS);
+        recognizer.process(InputImage.fromBitmap(bitmap,0))
+            .addOnSuccessListener(text->{
+                BattleStrategy.Detection detection=BattleStrategy.detect(text,bitmap.getWidth(),bitmap.getHeight());
+                StringBuilder out=new StringBuilder("DETECTED CARD CANDIDATES (UNVERIFIED)\\n");
+                int n=0;for(BattleStrategy.Card card:detection.cards){
+                    out.append(++n).append(". ").append(card.name).append(" | E:").append(card.energy).append(" A:").append(card.attack).append(" S:").append(card.shield).append("\\n");
+                }
+                out.append("\\n").append(BattleStrategy.recommend(detection.cards,energy,enemyHp)).append("\\n\\n").append(detection.warning);
+                callback.done(out.toString());
+            })
+            .addOnFailureListener(e->callback.done("Card recognition failed: "+e.getMessage()))
+            .addOnCompleteListener(task->{recognizer.close();bitmap.recycle();});
+    }
 }

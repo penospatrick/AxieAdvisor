@@ -1,0 +1,47 @@
+package com.axie.advisor;
+
+import android.app.Activity;
+import android.os.Bundle;
+import android.content.*;
+import android.net.Uri;
+import android.provider.Settings;
+import android.graphics.Color;
+import android.view.*;
+import android.widget.*;
+
+public class MainActivity extends Activity {
+    private LinearLayout root;
+    private EditText energy, costs, scores;
+    private TextView result;
+    @Override public void onCreate(Bundle state){super.onCreate(state);
+        ScrollView scroll=new ScrollView(this);root=new LinearLayout(this);root.setOrientation(LinearLayout.VERTICAL);root.setPadding(28,32,28,24);scroll.addView(root);setContentView(scroll);
+        TextView title=new TextView(this);title.setText("Axie Classic Battle Advisor");title.setTextSize(25);title.setTextColor(Color.rgb(35,80,155));root.addView(title);
+        TextView subtitle=new TextView(this);subtitle.setText("v0.1 · Manual card evaluation only. No live card recognition yet.");root.addView(subtitle);
+        button("Enable floating bubble",()->{
+            if(!Settings.canDrawOverlays(this)){Intent i=new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION,Uri.parse("package:"+getPackageName()));startActivity(i);}
+            else{startService(new Intent(this,BubbleService.class));Toast.makeText(this,"Bubble enabled",Toast.LENGTH_SHORT).show();}
+        });
+        button("Close floating bubble",()->stopService(new Intent(this,BubbleService.class)));
+        energy=field("Available energy (e.g. 3)","3");
+        costs=field("Card energy costs, comma separated (e.g. 1,1,2)","1,1,2");
+        scores=field("Estimated card values, comma separated (e.g. 80,60,110)","80,60,110");
+        button("Recommend cards",()->calculate());
+        result=new TextView(this);result.setTextSize(19);result.setPadding(0,20,0,0);root.addView(result);
+        calculate();
+    }
+    private EditText field(String hint,String value){TextView label=new TextView(this);label.setText(hint);root.addView(label);EditText input=new EditText(this);input.setSingleLine(true);input.setText(value);root.addView(input);return input;}
+    private void button(String title,Runnable action){Button b=new Button(this);b.setText(title);root.addView(b);b.setOnClickListener(v->action.run());}
+    private void calculate(){try{
+        int available=Integer.parseInt(energy.getText().toString().trim());
+        String[] c=costs.getText().toString().split(","),s=scores.getText().toString().split(",");
+        int n=c.length;if(n!=s.length||n<1||n>16)throw new IllegalArgumentException("Provide 1–16 cards and matching values.");
+        int[] cost=new int[n],val=new int[n];for(int i=0;i<n;i++){cost[i]=Integer.parseInt(c[i].trim());val[i]=Integer.parseInt(s[i].trim());if(cost[i]<0)throw new IllegalArgumentException("Cost must be nonnegative.");}
+        int best=-1,mask=0,spent=0;
+        for(int m=0;m<(1<<n);m++){int totalCost=0,totalValue=0;for(int i=0;i<n;i++)if((m&(1<<i))!=0){totalCost+=cost[i];totalValue+=val[i];}
+            if(totalCost<=available&&totalValue>best){best=totalValue;mask=m;spent=totalCost;}}
+        StringBuilder b=new StringBuilder("Suggested cards: ");for(int i=0;i<n;i++)if((mask&(1<<i))!=0)b.append(i+1).append(" ");
+        b.append("\nEnergy used: ").append(spent).append("/").append(available).append("\nEstimated value: ").append(best);
+        b.append("\n\nThese values are manually entered, not real game predictions.");
+        result.setText(b.toString());
+    }catch(Exception ex){result.setText("Input error: "+ex.getMessage());}}
+}

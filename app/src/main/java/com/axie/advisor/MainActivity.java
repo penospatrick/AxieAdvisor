@@ -20,13 +20,14 @@ public class MainActivity extends Activity {
     @Override public void onCreate(Bundle state){super.onCreate(state);
         ScrollView scroll=new ScrollView(this);root=new LinearLayout(this);root.setOrientation(LinearLayout.VERTICAL);root.setPadding(28,32,28,24);scroll.addView(root);setContentView(scroll);
         TextView title=new TextView(this);title.setText("Axie Classic Battle Advisor");title.setTextSize(25);title.setTextColor(Color.rgb(35,80,155));root.addView(title);
-        TextView subtitle=new TextView(this);subtitle.setText("v0.2 · Screen capture available. Automatic card recognition is not yet implemented.");root.addView(subtitle);
+        TextView subtitle=new TextView(this);subtitle.setText("v0.3 · Experimental offline OCR. Card recognition and strategy are not yet available.");root.addView(subtitle);
         projectionManager=(android.media.projection.MediaProjectionManager)getSystemService(MEDIA_PROJECTION_SERVICE);
         TextView label=new TextView(this);label.setText("SCREEN CAPTURE · v0.2");label.setTextSize(21);root.addView(label);
         scanStatus=new TextView(this);scanStatus.setText("Capture inactive. Images stay in app-private storage.");root.addView(scanStatus);
         button("Start automatic scanning (every 3 seconds)",()->{autoScan=true;requestCapture();});
         button("Start manual scanning",()->{autoScan=false;requestCapture();});
         button("Analyze now (capture screen)",()->{Intent i=new Intent(this,CaptureService.class);i.setAction(CaptureService.ACTION_SCAN);startService(i);});
+        button("Read latest capture with offline AI (OCR)",()->BattleOcr.analyze(this,text->runOnUiThread(()->scanStatus.setText("Recognized text (unverified):\\n"+text))));
         button("Stop screen capture",()->{stopService(new Intent(this,CaptureService.class));scanStatus.setText("Capture stopped.");});
         button("Enable floating bubble",()->{
             if(!Settings.canDrawOverlays(this)){Intent i=new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION,Uri.parse("package:"+getPackageName()));startActivity(i);}

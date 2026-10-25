@@ -12,7 +12,11 @@ import android.widget.*;
 public class MainActivity extends Activity {
     private LinearLayout root;
     private EditText energy, costs, scores;
-    private TextView result;
+    private TextView result, scanStatus;
+    private static final int CAPTURE_REQUEST=110;
+    private android.media.projection.MediaProjectionManager projectionManager;
+    private boolean autoScan=false;
+    private final android.content.BroadcastReceiver scanReceiver=new android.content.BroadcastReceiver(){@Override public void onReceive(Context context,Intent intent){scanStatus.setText("Captured "+intent.getIntExtra("count",0)+" screen image(s). Card recognition is not yet implemented.");}};
     @Override public void onCreate(Bundle state){super.onCreate(state);
         ScrollView scroll=new ScrollView(this);root=new LinearLayout(this);root.setOrientation(LinearLayout.VERTICAL);root.setPadding(28,32,28,24);scroll.addView(root);setContentView(scroll);
         TextView title=new TextView(this);title.setText("Axie Classic Battle Advisor");title.setTextSize(25);title.setTextColor(Color.rgb(35,80,155));root.addView(title);
@@ -27,8 +31,26 @@ public class MainActivity extends Activity {
         scores=field("Estimated card values, comma separated (e.g. 80,60,110)","80,60,110");
         button("Recommend cards",()->calculate());
         result=new TextView(this);result.setTextSize(19);result.setPadding(0,20,0,0);root.addView(result);
+        projectionManager=(android.media.projection.MediaProjectionManager)getSystemService(MEDIA_PROJECTION_SERVICE);
+        TextView label=new TextView(this);label.setText("SCREEN CAPTURE · v0.2");label.setTextSize(21);root.addView(label);
+        scanStatus=new TextView(this);scanStatus.setText("Capture inactive. Images stay in app-private storage.");root.addView(scanStatus);
+        button("Start automatic scanning (every 3 seconds)",()->{autoScan=true;requestCapture();});
+        button("Start manual scanning",()->{autoScan=false;requestCapture();});
+        button("Analyze now (capture screen)",()->{Intent i=new Intent(this,CaptureService.class);i.setAction(CaptureService.ACTION_SCAN);startService(i);});
+        button("Stop screen capture",()->{stopService(new Intent(this,CaptureService.class));scanStatus.setText("Capture stopped.");});
         calculate();
     }
+    private void requestCapture(){startActivityForResult(projectionManager.createScreenCaptureIntent(),CAPTURE_REQUEST);}
+    @Override protected void onActivityResult(int request,int code,Intent data){
+        super.onActivityResult(request,code,data);
+        if(request==CAPTURE_REQUEST&&code==RESULT_OK&&data!=null){
+            Intent service=new Intent(this,CaptureService.class);service.putExtra("code",code);service.putExtra("data",data);service.putExtra("auto",autoScan);
+            startForegroundService(service);scanStatus.setText(autoScan?"Automatic capture started.":"Manual capture started. Tap Analyze now.");
+        }
+    }
+    @Override protected void onStart(){super.onStart();android.content.IntentFilter filter=new android.content.IntentFilter(CaptureService.ACTION_RESULT);if(android.os.Build.VERSION.SDK_INT>=33)registerReceiver(scanReceiver,filter,Context.RECEIVER_NOT_EXPORTED);else registerReceiver(scanReceiver,filter);}
+    @Override protected void onStop(){unregisterReceiver(scanReceiver);super.onStop();}
+
     private EditText field(String hint,String value){TextView label=new TextView(this);label.setText(hint);root.addView(label);EditText input=new EditText(this);input.setSingleLine(true);input.setText(value);root.addView(input);return input;}
     private void button(String title,Runnable action){Button b=new Button(this);b.setText(title);root.addView(b);b.setOnClickListener(v->action.run());}
     private void calculate(){try{
